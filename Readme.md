@@ -1,41 +1,45 @@
-# Docker:WebDAV
+# 本镜像基于Debian:latest镜像构建。This image is basesd on debian:latest
 
-This [Dockerfile](Dockerfile) compiles to an image that
+# 用法 Usage
+## Docker Cli
+```
+docker run -d \
+  --name=webdav \
+  -p host port:80 \    #前面填要映射的主机端口
+  -v /path/to/apache/default.conf:/etc/apache2/sites-available/000-default.conf \   #配置文件，默认配置请看下一部分
+  -v /path/to/.htpasswd:/dav/.htpassword   #用户验证文件
+  -v /path/to/dav-files:/dav/share     #前面是要共享的文件在主机的路径
+  -v /path/to/letsencrypt/challenges:/acme/.well-known/acme-challenge \    #optional 可选配置
+  --restart unless-stopped \
+  xushier/webdav:latest
+```
+# 参数 Parameters
+| 参数 Parameters | 功能 Function |
+| :----: | :-----|
+| `-p 80` | 网页界面 http WEBGUI |
+| `-v /etc/apache2/sites-available/000-default.conf` | 配置文件 Config File |
+| `-v /dav/.htpassword` | 用户验证文件 Auth File |
+| `-v /dav/share` | 共享文件路径 Dav-files |
+# 配置文件 000-default.conf    Config File
+```
+DavLockDB ${APACHE_LOCK_DIR}/DAVLock
+<VirtualHost *:80>
 
-* is based on a [debian:testing](https://hub.docker.com/r/_/debian/)
-* has the latest [Apache webserver](http://httpd.apache.org/) installed
-* has the [Apache WebDAV modules](https://httpd.apache.org/docs/2.2/mod/mod_dav.html) enabled
+        ServerAdmin webmaster@localhost
+        DocumentRoot /dav/share
+        ServerName localhost:80
+        Alias /.well-known/acme-challenge/ /acme/.well-known/acme-challenge
 
-It is available through the Docker Hub at [binfalse/webdav](https://hub.docker.com/r/binfalse/webdav/).
+        <Directory /dav/share>
+            Options Indexes
+            DAV On
+            AuthType Basic
+            AuthName "webdav"
+            AuthUserFile /dav/.htpassword
+            Require valid-user
+        </Directory>
 
-## Running
-
-To run the images you still need to deploy a proper virtual host configuration that serves a directory tree through webdav.
-A sample configuration is included in the repository as [default.conf](default.conf).
-You just need to mount it to `/etc/apache2/sites-available/000-default.conf` to apply it to a running container.
-This example assumes that you also mount
-
-* an `.htpasswd` for user authentication to `/dav/.htpassword`
-* the actual directory tree to serve using WebDAV to `/dav/share`
-
-Thus, a commandline may look like this:
-
-    docker run --rm -it \
-        -v default.conf:/etc/apache2/sites-available/000-default.conf \
-        -v /path/to/dav-files:/dav/share:ro \
-        -v /path/to/.htpasswd:/dav/.htpassword:ro \
-        -p 8888:80 binfalse/webdav
-
-If you're using Docker-Compose:
-
-    webdav:
-        restart: always
-        image: binfalse/webdav
-        volumes:
-            - /path/to/dav-files:/dav/share
-            - /path/to/.htpasswd:/dav/.htpassword:ro
-            - /path/to/apache/default.conf:/etc/apache2/sites-available/000-default.conf
-            - /path/to/letsencrypt/challenges:/acme/.well-known/acme-challenge:ro
-
-Skip the *letsencrypt* part, if you're not using it ;-)
-
+</VirtualHost>
+```
+# 多用户验证文件 Multi-User Auth Config
+默认配置文件验证方式为`Basic`，如需修改为`Digest`，在配置文件里修改即可。用户及密码可在容器内使用`htpassword`命令生成，也可在`htpasswd`在线生成网站生成。
